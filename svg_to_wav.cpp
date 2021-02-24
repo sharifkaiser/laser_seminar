@@ -1,18 +1,58 @@
-// wav format: http://soundfile.sapp.org/doc/WaveFormat/
-// understanding of typename template: static_cast <char> (value & 0xFF)
-// static_cast vs dynamic_cast vs c style cast: https://stackoverflow.com/questions/28002/regular-cast-vs-static-cast-vs-dynamic-cast
+/*H**********************************************************************
+* FILENAME :        svg_to_wav.cpp
+*
+* DESCRIPTION :
+*       Converts text file input containing svg image points into wav signal of desired frequency
+*
+* PUBLIC FUNCTIONS :
+*   bool set_validate_input_args(int argc, char* argv[], int* seconds, int* freq, std::string & signal_name, int* sampling_rate, std::string & points_file)
+*   void create_sample_buffer(int16_t x_buff[], int16_t y_buff[], 
+                          int freq, int Fs, int num_samples, int wave_typ,
+                        std::vector<Point> &scaled_points, int interpolation_factor)
+*   bool load_image_params(std::string file, std::vector<Point> &points, int* canvas_height, int* canvas_width)
 
-/* 
-wav_write.cpp: default values: seconds=10, freq=1000, sampling_rate=48000, signal_name=""
-how to call: 
-1  ./svg_to_wav canvas_dim_in_pixel<int> filename.txt<string>
-2  ./svg_to_wav canvas_dim_in_pixel<int> filename.txt<string> seconds<int> freq<int> signal_name("sine", "rectangle") <string> sampling_rate<int>
-3. all parameters in 2 are optional and sequential
-4. signal_name parameter should be passed only if rectangle or sine wave is wanted e.g. input text file will be overridden
+* Some helpful links
+    // wav format: http://soundfile.sapp.org/doc/WaveFormat/
+    // understanding of typename template: static_cast <char> (value & 0xFF)
+    // static_cast vs dynamic_cast vs c style cast: https://stackoverflow.com/questions/28002/regular-cast-vs-static-cast-vs-dynamic-cast
+    // path to points online svg to points converter: https://shinao.github.io/PathToPoints/
 
-// example:
-./svg_to_wav 400 triangle.txt
-*/
+Default input argument values: seconds=10, freq=100, sampling_rate=48000, signal_name=""
+
+Note: 
+    Lookup table is used to keep one cycle of the signal. Different frequencies and different time length wav can
+    be generated. The input frequency can also be floating point. In fact, if we want 10 seconds of audio that will 
+    represent one full cylce of the signal, then the input frequency should be f=1/T=1/10=0.1, if you want 2 full 
+    cycle in 10 sec audio, then input freq should be 1*2/10=0.2 etc.
+    However, for input frequencies larger than 1, please use int values since float vals above 1
+    does not make much sense.
+
+How to call: 
+    1  ./svg_to_wav filename.txt<string>
+    2  ./svg_to_wav filename.txt<string> seconds<int> freq<float> signal_name("sine", "rectangle") <string> sampling_rate<int>
+    3. all parameters in 2 are optional and sequential
+    4. signal_name parameter should be passed only if rectangle or sine wave is wanted e.g. input text file will be overridden
+
+<filename>.txt (input text file) consists of the following:
+-- Create an new text file
+-- first line of the file must contain dimension in the format: <height||width> [width and height both int and preferably same].
+    Open svg file with any text editor, copy width, height values from there and paste as abovementioned h||w format 
+-- all the following lines contains x and y coordinate obtained from the input svg image. Use Pathtopoints library, or
+    go to online pathtopoints github above, drag and drop svg file -> apply -> copy paste the points to the text file. 
+    Each line should contain one point x,y [x and y are float]
+-- the last line of the file ends with the string # [end of file]
+
+// Calling example with only the points file input and all other default values:
+./svg_to_wav triangle.txt
+
+
+AUTHOR :    A K M Sharif Kaiser(SK)        START DATE : 01 Nov 2020
+
+CHANGES :
+REF NO  VERSION DATE    WHO     DETAIL
+* 02    22FEB2020       SK      Change in points input file content, bug fix and error checking
+
+*H*/
 
 #include <cmath>
 #include <fstream>
@@ -23,41 +63,7 @@ how to call:
 enum wave_type {rectangle = 0, sine = 1, input = 3};
 int canvas_dim = 400;    // input from user, or parse from svg file
 const unsigned int amp_multiplyer = 60000;  // multiplier for 16 bit signal, the range of points [-0.5, +0.5] 
-int lut_size = 48000;  // lookup table initial size
-/*
-namespace endian
-{
-  union _endian_test {  // all vars in union points to the same address e.g. all are same variable
-      uint16_t word;
-      uint8_t byte[2];
-  };
-
-  int isLittleEndian() {
-      _endian_test test;
-      test.word = 0xAA00;
-
-      return test.byte[0] == 0x00;
-  }
-
-  int isBigEndian() {
-      _endian_test test;
-      test.word = 0xAA00;
-
-      return test.byte[0] == 0xAA;
-  }
-}
-
-uint16_t swap16(uint16_t in)    // swaps bytes of 2 byte uint, used for little to big endian conversion or vice versa
-{
-    return (in >> 8) | (in << 8);
-}
-
-uint32_t swap32(uint32_t in)  // swaps bytes of 4 byte uint, used for little/big endian conversion, ex. 0x (01 23 45 67) => 0x (67 45 23 01)
-{
-    return  ((in & 0xFF000000) >> 24) | ((in & 0x00FF0000) >>  8) |     // swap leftmost 2 bytes and bring them to rightmost bytes
-            ((in & 0x0000FF00) <<  8) | ((in & 0x000000FF) << 24);      // swap rightmost 2 bytes and bring them to the left
-}
-*/
+unsigned int lut_size = 48000;  // lookup table initial size
 
 namespace little_endian_io
 {
@@ -145,23 +151,42 @@ Point::~Point()
 {
 }
 
-int set_input_params(int argc, char* argv[], int* canvas_dim, int* seconds, int* freq, std::string & signal_name, int* sampling_rate, std::string & points_file){
-    if(argc < 2)  // argv[0] always file name
-        return -1;  // error
+bool set_validate_input_args(int argc, char* argv[], int* seconds, float* freq, std::string & signal_name, int* sampling_rate, std::string & points_file){
+    if(argc < 2){
+        // argv[0] always file name
+        std::cout << "Input Error: please provide valid canvas dimension(positive int) and input points file name" << std::endl;
+        return false;  // error
+    }
     else{
         char *endptr = NULL;;
-        *canvas_dim = std::strtol (argv[1], &endptr, 10);  // array to int conversion
-        points_file = argc > 2 ? argv[2] : points_file;
-        *seconds = argc > 3 ? std::strtol (argv[3], &endptr, 10) : *seconds; // checking if arg exists
-        *freq = argc > 4 ? std::strtol (argv[4], &endptr, 10) : *freq;
-        signal_name = argc > 5 ? argv[5] : signal_name;
-        *sampling_rate = argc > 6 ? std::strtol (argv[6], &endptr, 10): *sampling_rate;
+        //*canvas_dim = std::strtol (argv[1], &endptr, 10);  // array to int conversion
+        points_file = argc > 1 ? argv[1] : points_file;
+        *seconds = argc > 2 ? std::strtol (argv[2], &endptr, 10) : *seconds; // checking if arg exists
+        *freq = argc > 3 ? std::strtof (argv[3], &endptr) : *freq;
+        signal_name = argc > 4 ? argv[4] : signal_name;
+        *sampling_rate = argc > 5 ? std::strtol (argv[5], &endptr, 10): *sampling_rate;
 
-        if (!*canvas_dim || !*seconds || !*freq || !*sampling_rate || !points_file.length())
-            return -1;  // none of these values should be zero
-        
+        if (!points_file.length()){
+            std::cout << "Input Error: please provide valid input points file name" << std::endl;
+            return false;
+        }
+        else if (!*seconds || *seconds < 1)
+        {
+            std::cout << "Input Error: duration of the signal (seconds) must be a positive int" << std::endl;
+            return false;
+        }
+        else if (!*freq || *freq <= 0 || *freq > 24000)
+        {
+            std::cout << "Input Error: input frequency must be positive and below 24000" << std::endl;
+            return false;
+        }
+        else if (!*sampling_rate || *sampling_rate < 1)
+        {
+            std::cout << "Input Error: sampling rate must be either 44100 or 48000" << std::endl;
+            return false;
+        }
     } 
-    return 0;
+    return true;
 }
 
 /*
@@ -192,13 +217,13 @@ void set_wav_header(int* num_samples, int* sampling_rate){
 
 // Creates sound buffer and returns 1 on success
 void create_sample_buffer(int16_t x_buff[], int16_t y_buff[], 
-                          int freq, int Fs, int num_samples, int wave_typ,
+                          float freq, int Fs, int num_samples, int wave_typ,
                         std::vector<Point> &scaled_points, int interpolation_factor)
 {
     int16_t lut[lut_size];      // lookup table used if wave is sine/rectangle
     int16_t lut_x[lut_size];      // lookup table for x values for input svg points
     int16_t lut_y[lut_size];      // lookup table for y values for input svg points
-    const float phase_increment = (float)(freq * lut_size) / (float) Fs;
+    const float phase_increment = (freq/(float)Fs) * (float)lut_size;
     float phase_x = 0.0f, phase_y = 0.0f;   // phase accumulator for sine and rectangular wave
     float phase = 0.0f;    // phase for custom input svg points
 
@@ -251,7 +276,7 @@ void create_sample_buffer(int16_t x_buff[], int16_t y_buff[],
         {
             enum interpolation_type {increment = 1, decreament = -1, same = 0};
             interpolation_type interpolation_type_x, interpolation_type_y;
-            int i, interpolation_counter, lut_counter = 0;
+            unsigned int i, interpolation_counter, lut_counter = 0;
             double current_x, current_y, next_x, next_y, inc_x, inc_y, interpolated_x, interpolated_y;
 
             // Fill lut with forward points
@@ -363,9 +388,11 @@ void create_sample_buffer(int16_t x_buff[], int16_t y_buff[],
             }
 
             // print lut
+            /*
             for (i = 0; i < lut_size; i++){ 
                 std::cout <<"i=" << i << ",  x: " << lut_x[i] << ", y: " << lut_y[i] << std::endl;
             }
+            */
         }        
 
     default:
@@ -408,13 +435,14 @@ void create_sample_buffer(int16_t x_buff[], int16_t y_buff[],
     }
 }
 
-void load_points_from_file(std::string file, std::vector<Point> &points)
+bool load_image_params(std::string file, std::vector<Point> &points, int* canvas_height, int* canvas_width)
 {
     std::ifstream file_points(file);
     std::string line, x, y;
     int pos;
     Point current_point;
     std::size_t offset = 0; //offset will be set to the length of characters of the "value" - 1.
+    std::string::size_type sz;   // alias of size_t
 
     if (file_points.is_open())
     {
@@ -433,21 +461,36 @@ void load_points_from_file(std::string file, std::vector<Point> &points)
             {
                 break; //exit from while loop
             }
+            else    // check for dimensions that are delimited as height||width 
+            {
+                pos = line.find("||");
+                if (pos != std::string::npos){
+                    *canvas_height = std::stoi(line.substr(0, pos), &sz);
+                    *canvas_width = std::stoi(line.substr(pos + 2, line.length()), &sz);
+                }else
+                {
+                    std::cout << "Input Error: invalid input file. The file contains unexpected characters. Please check source file (svg_to_wav.cpp) header comment to arrange input text file." << std::endl;
+                    return false;
+                }
+                
+            }            
         }
         file_points.close();
     }
+    return true;
 }
 
 int main(int argc, char* argv[])
 {
     // init default values for the signal
-    int num_samples, freq = 500, sampling_rate = 48000, seconds = 10;
+    int num_samples, sampling_rate = 48000, seconds = 10;
+    float freq = 500;
     int signal = -1;
     std::string signal_name = "", points_file = "";
+    int canvas_h, canvas_w;
 
-    if (set_input_params(argc, argv, &canvas_dim, &seconds, &freq, signal_name, &sampling_rate, points_file) == -1){
-        std::cout << "Please provide canvas dimension<int> and points file name<string>" << std::endl;
-        return 0;   // exit
+    if (!set_validate_input_args(argc, argv, &seconds, &freq, signal_name, &sampling_rate, points_file)){  // all passed by ref
+        return 0;   // error occured, exit main
     }
 
     signal = (signal_name.compare("sine") == 0) ? wave_type::sine : (signal_name.compare("rect") == 0) ? wave_type::rectangle : signal;
@@ -489,8 +532,13 @@ int main(int argc, char* argv[])
     }
  */
     std::vector<Point> points;
-    load_points_from_file(points_file, points);   // points is passed by ref
-    std::cout << "vector size: " << points.size() << std::endl;
+    if(!load_image_params(points_file, points, &canvas_h, &canvas_w)){    // load points and canvus dimensions, all passed by ref
+        return 0;   // error occured, exit main
+    }
+    //set canvus_dimension
+    canvas_dim = canvas_h;
+
+    std::cout << "number of points (vect size): " << points.size() << "canvas dim: " << canvas_dim << std::endl;
     for (Point &element: points)    // rescale points, pass each element by ref
         element.rescale_point(&element);
 
