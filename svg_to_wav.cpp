@@ -52,6 +52,7 @@ CHANGES :
 REF NO  VERSION DATE    WHO     DETAIL
 * 02    22FEB2021       SK      Change in points input file content, bug fix and error checking
 * 03    02MAR2021       SK      Modified error checking code
+* 04    03MAR2021       SK      Modified code for oscilloscope triggering
 
 *H*/
 
@@ -63,6 +64,7 @@ REF NO  VERSION DATE    WHO     DETAIL
 //#include "util.hpp"
 
 //#include <string>
+unsigned int TRIGGER_THRESHOLD = 31000;
 enum wave_type {rectangle = 0, sine = 1, input = 3};
 int canvas_dim = 400;    // input from user, or parse from svg file
 const unsigned int amp_multiplyer = 60000;  // multiplier for 16 bit signal, the range of points [-0.5, +0.5] 
@@ -429,13 +431,27 @@ void create_sample_buffer(int16_t x_buff[], int16_t y_buff[],
     }
     else if (wave_typ == wave_type::input){ // fill the entire buffer with lut values
         for (int i = 0; i < num_samples; ++i){
-            int int_phase = (int)phase;
+            int int_phase = (int)phase;            
             x_buff[i] = lut_x[int_phase];
             y_buff[i] = lut_y[int_phase];
             phase += phase_increment;
             if (phase >= (float)lut_size)    // handle wraparound
             {
                 phase -= (float)lut_size;
+            }
+
+            // handle trigger, fill first 190 values with 31000 (max for any sample is 30000) and then 10 vals with -31000
+            if (i < 100){
+                x_buff[i] = TRIGGER_THRESHOLD;
+                y_buff[i] = TRIGGER_THRESHOLD;
+
+                // last 10 vals -31000 in the end (trigger it with falling edge with 31000 (volt equivalent) threshold)
+                if (i >= 90)
+                {
+                    x_buff[i] = -31000;
+                    y_buff[i] = -31000;
+                }
+                std::cout << "buff" << x_buff[i] << std::endl;
             }
         }
     }
