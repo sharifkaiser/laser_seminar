@@ -6,7 +6,7 @@
 	  {
 		"type": "cppbuild",
 		"label": "clang++ build active file",
-		"command": "/usr/bin/clang++",
+		"command": "/usr/bin/clang++",	// build command 
 		"args": [
 		  "-std=c++17",
 		  "-stdlib=libc++",

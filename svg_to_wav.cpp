@@ -5,7 +5,7 @@
 *       Converts text file input containing svg image points into wav signal of desired frequency
 *
 * PUBLIC FUNCTIONS :
-*   bool set_validate_input_args(int argc, char* argv[], int* seconds, int* freq, std::string & signal_name, int* sampling_rate, std::string & points_file)
+*   int set_validate_input_args(int argc, char* argv[], int* seconds, int* freq, std::string & signal_name, int* sampling_rate, std::string & points_file)
 *   void create_sample_buffer(int16_t x_buff[], int16_t y_buff[], 
                           int freq, int Fs, int num_samples, int wave_typ,
                         std::vector<Point> &scaled_points, int interpolation_factor)
@@ -50,7 +50,8 @@ AUTHOR :    A K M Sharif Kaiser(SK)        START DATE : 01 Nov 2020
 
 CHANGES :
 REF NO  VERSION DATE    WHO     DETAIL
-* 02    22FEB2020       SK      Change in points input file content, bug fix and error checking
+* 02    22FEB2021       SK      Change in points input file content, bug fix and error checking
+* 03    02MAR2021       SK      Modified error checking code
 
 *H*/
 
@@ -59,6 +60,8 @@ REF NO  VERSION DATE    WHO     DETAIL
 #include <iostream>
 #include <cstdlib>
 #include <vector>
+//#include "util.hpp"
+
 //#include <string>
 enum wave_type {rectangle = 0, sine = 1, input = 3};
 int canvas_dim = 400;    // input from user, or parse from svg file
@@ -151,11 +154,11 @@ Point::~Point()
 {
 }
 
-bool set_validate_input_args(int argc, char* argv[], int* seconds, float* freq, std::string & signal_name, int* sampling_rate, std::string & points_file){
+int set_validate_input_args(int argc, char* argv[], int* seconds, float* freq, std::string & signal_name, int* sampling_rate, std::string & points_file){
     if(argc < 2){
         // argv[0] always file name
-        std::cout << "Input Error: please provide valid canvas dimension(positive int) and input points file name" << std::endl;
-        return false;  // error
+        std::cout << "Input Error: please provide an input file as the first argument that contains points (txt file)" << std::endl;
+        return -1;  // not enough input argument
     }
     else{
         char *endptr = NULL;;
@@ -167,26 +170,29 @@ bool set_validate_input_args(int argc, char* argv[], int* seconds, float* freq, 
         *sampling_rate = argc > 5 ? std::strtol (argv[5], &endptr, 10): *sampling_rate;
 
         if (!points_file.length()){
-            std::cout << "Input Error: please provide valid input points file name" << std::endl;
-            return false;
+            std::cout << "Invalid argument: please provide valid input points file name" << std::endl;
+            return -1;
         }
-        else if (!*seconds || *seconds < 1)
+        
+        if (!*seconds || *seconds < 1)
         {
-            std::cout << "Input Error: duration of the signal (seconds) must be a positive int" << std::endl;
-            return false;
+            std::cout << "Invalid argument: duration of the signal (seconds) must be a positive int" << std::endl;
+            return -2;  // invalid time input
         }
-        else if (!*freq || *freq <= 0 || *freq > 24000)
+        
+        if (!*freq || *freq <= 0 || *freq > 24000)
         {
-            std::cout << "Input Error: input frequency must be positive and below 24000" << std::endl;
-            return false;
+            std::cout << "Invalid argument: input frequency must be positive and below 24000" << std::endl;
+            return -3;  // invalid frequency input
         }
-        else if (!*sampling_rate || *sampling_rate < 1)
+        
+        if (!*sampling_rate || (*sampling_rate != 44100 && *sampling_rate != 48000))
         {
-            std::cout << "Input Error: sampling rate must be either 44100 or 48000" << std::endl;
-            return false;
+            std::cout << "Invalid argument: sampling rate must be either 44100 or 48000" << std::endl;
+            return -4;  // invalid sampling rate
         }
     } 
-    return true;
+    return 0;   // no error
 }
 
 /*
@@ -461,12 +467,12 @@ bool load_image_params(std::string file, std::vector<Point> &points, int* canvas
             {
                 break; //exit from while loop
             }
-            else    // check for dimensions that are delimited as height||width 
+            else    // check for dimensions that are delimited as height|width 
             {
-                pos = line.find("||");
+                pos = line.find("|");
                 if (pos != std::string::npos){
                     *canvas_height = std::stoi(line.substr(0, pos), &sz);
-                    *canvas_width = std::stoi(line.substr(pos + 2, line.length()), &sz);
+                    *canvas_width = std::stoi(line.substr(pos + 1, line.length()), &sz);
                 }else
                 {
                     std::cout << "Input Error: invalid input file. The file contains unexpected characters. Please check source file (svg_to_wav.cpp) header comment to arrange input text file." << std::endl;
@@ -483,14 +489,14 @@ bool load_image_params(std::string file, std::vector<Point> &points, int* canvas
 int main(int argc, char* argv[])
 {
     // init default values for the signal
-    int num_samples, sampling_rate = 48000, seconds = 10;
+    int num_samples, sampling_rate = 48000, seconds = 10, retval;
     float freq = 500;
     int signal = -1;
     std::string signal_name = "", points_file = "";
     int canvas_h, canvas_w;
 
-    if (!set_validate_input_args(argc, argv, &seconds, &freq, signal_name, &sampling_rate, points_file)){  // all passed by ref
-        return 0;   // error occured, exit main
+    if ((retval=set_validate_input_args(argc, argv, &seconds, &freq, signal_name, &sampling_rate, points_file)) != 0){  // all passed by ref
+        exit(retval);   // error occured, exit main with error value (retval will be useful in bash testing)
     }
 
     signal = (signal_name.compare("sine") == 0) ? wave_type::sine : (signal_name.compare("rect") == 0) ? wave_type::rectangle : signal;
@@ -538,7 +544,7 @@ int main(int argc, char* argv[])
     //set canvus_dimension
     canvas_dim = canvas_h;
 
-    std::cout << "number of points (vect size): " << points.size() << "canvas dim: " << canvas_dim << std::endl;
+    std::cout << "# of points in input file (vect size): " << points.size() << ", Canvas dimension: " << canvas_h << " * " << canvas_w << std::endl;
     for (Point &element: points)    // rescale points, pass each element by ref
         element.rescale_point(&element);
 
@@ -571,7 +577,7 @@ int main(int argc, char* argv[])
         return 0;
     }
 
-    std::cout << "interpolation points: " << interpolation_factor << ", lut_size: " << lut_size << std::endl; 
+    std::cout << "#interpolated points: " << interpolation_factor << ", Lookup table size: " << lut_size << std::endl; 
 
 
     // Write the data chunk header
