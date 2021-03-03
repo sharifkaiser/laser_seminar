@@ -33,7 +33,7 @@ How to call:
     3. all parameters in 2 are optional and sequential
     4. signal_name parameter should be passed only if rectangle or sine wave is wanted e.g. input text file will be overridden
 
-<filename>.txt (input text file) consists of the following:
+<filename>.txt (input text file) consists of the following (see /svg/svg_to_text.txt file for instructions):
 -- Create an new text file
 -- first line of the file must contain dimension in the format: <height||width> [width and height both int and preferably same].
     Open svg file with any text editor, copy width, height values from there and paste as abovementioned h||w format 
@@ -52,7 +52,7 @@ CHANGES :
 REF NO  VERSION DATE    WHO     DETAIL
 * 02    22FEB2021       SK      Change in points input file content, bug fix and error checking
 * 03    02MAR2021       SK      Modified error checking code
-* 04    03MAR2021       SK      Modified code for oscilloscope triggering
+* 04    03MAR2021       SK      Modified code for oscilloscope triggering, separate height and width handling
 
 *H*/
 
@@ -64,11 +64,13 @@ REF NO  VERSION DATE    WHO     DETAIL
 //#include "util.hpp"
 
 //#include <string>
-unsigned int TRIGGER_THRESHOLD = 31000;
+unsigned int TRIGGER_THRESHOLD = 32500;
 enum wave_type {rectangle = 0, sine = 1, input = 3};
-int canvas_dim = 400;    // input from user, or parse from svg file
-const unsigned int amp_multiplyer = 60000;  // multiplier for 16 bit signal, the range of points [-0.5, +0.5] 
+int canvas_h = 400, canvas_w = 400;    // input from user, or parse from svg file
 unsigned int lut_size = 48000;  // lookup table initial size
+
+// multiplier for 16 bit signal, the range of points [-0.5, +0.5], so after multiplication, range: [-20000, 20000]
+const unsigned int amp_multiplyer = 40000;
 
 namespace little_endian_io
 {
@@ -144,8 +146,8 @@ double Point::get_y(){
 }
 
 void Point::rescale_point(Point* point_element){
-    point_element->x = (point_element->x - 0.0) / ((double)canvas_dim - 0.0);   // normalization between 0 and 1
-    point_element->y = (point_element->y - 0.0) / ((double)canvas_dim - 0.0);
+    point_element->x = (point_element->x - 0.0) / ((double)canvas_w - 0.0);   // normalization between 0 and 1
+    point_element->y = (point_element->y - 0.0) / ((double)canvas_h - 0.0);
     point_element->x -= 0.5;   // scale in [-0.5, 0.5] range
     point_element->y -= 0.5;
     point_element->x *= (double)amp_multiplyer;   // multiply to reflect in signal
@@ -163,8 +165,7 @@ int set_validate_input_args(int argc, char* argv[], int* seconds, float* freq, s
         return -1;  // not enough input argument
     }
     else{
-        char *endptr = NULL;;
-        //*canvas_dim = std::strtol (argv[1], &endptr, 10);  // array to int conversion
+        char *endptr = NULL;
         points_file = argc > 1 ? argv[1] : points_file;
         *seconds = argc > 2 ? std::strtol (argv[2], &endptr, 10) : *seconds; // checking if arg exists
         *freq = argc > 3 ? std::strtof (argv[3], &endptr) : *freq;
@@ -440,7 +441,7 @@ void create_sample_buffer(int16_t x_buff[], int16_t y_buff[],
                 phase -= (float)lut_size;
             }
 
-            // handle trigger, fill first 190 values with 31000 (max for any sample is 30000) and then 10 vals with -31000
+            // handle trigger, fill first 190 values with 32500 and then 10 vals with -32500
             if (i < 100){
                 x_buff[i] = TRIGGER_THRESHOLD;
                 y_buff[i] = TRIGGER_THRESHOLD;
@@ -448,11 +449,15 @@ void create_sample_buffer(int16_t x_buff[], int16_t y_buff[],
                 // last 10 vals -31000 in the end (trigger it with falling edge with 31000 (volt equivalent) threshold)
                 if (i >= 90)
                 {
-                    x_buff[i] = -31000;
-                    y_buff[i] = -31000;
+                    x_buff[i] = -32500;
+                    y_buff[i] = -32500;
                 }
-                std::cout << "buff" << x_buff[i] << std::endl;
             }
+            /*
+            if (x_buff[i] > 30000 || y_buff[i] > 30000){
+                std::cout << x_buff[i] << ", " << y_buff[i] << std::endl;
+            }
+            */
         }
     }
 }
@@ -509,7 +514,6 @@ int main(int argc, char* argv[])
     float freq = 500;
     int signal = -1;
     std::string signal_name = "", points_file = "";
-    int canvas_h, canvas_w;
 
     if ((retval=set_validate_input_args(argc, argv, &seconds, &freq, signal_name, &sampling_rate, points_file)) != 0){  // all passed by ref
         exit(retval);   // error occured, exit main with error value (retval will be useful in bash testing)
@@ -546,7 +550,6 @@ int main(int argc, char* argv[])
 
 /*
     {   // print input params
-        std::cout << "canvas_dim: " << canvas_dim << std::endl;
         std::cout << "freq: " << freq << std::endl;
         std::cout << "sampling_rate: " << sampling_rate << std::endl;
         std::cout << "num_samples: " << num_samples << std::endl;
@@ -557,8 +560,6 @@ int main(int argc, char* argv[])
     if(!load_image_params(points_file, points, &canvas_h, &canvas_w)){    // load points and canvus dimensions, all passed by ref
         return 0;   // error occured, exit main
     }
-    //set canvus_dimension
-    canvas_dim = canvas_h;
 
     std::cout << "# of points in input file (vect size): " << points.size() << ", Canvas dimension: " << canvas_h << " * " << canvas_w << std::endl;
     for (Point &element: points)    // rescale points, pass each element by ref
