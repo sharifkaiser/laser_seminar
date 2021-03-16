@@ -35,7 +35,7 @@ How to call:
 
 <filename>.txt (input text file) consists of the following (see /svg/svg_to_text.txt file for instructions):
 -- Create an new text file
--- first line of the file must contain dimension in the format: <height||width> [width and height both int and preferably same].
+-- first line of the file must contain dimension in the format: <height|width> [width and height both int and preferably same].
     Open svg file with any text editor, copy width, height values from there and paste as abovementioned h||w format 
 -- all the following lines contains x and y coordinate obtained from the input svg image. Use Pathtopoints library, or
     go to online pathtopoints github above, drag and drop svg file -> apply -> copy paste the points to the text file. 
@@ -53,6 +53,7 @@ REF NO  VERSION DATE    WHO     DETAIL
 * 02    22FEB2021       SK      Change in points input file content, bug fix and error checking
 * 03    02MAR2021       SK      Modified error checking code
 * 04    03MAR2021       SK      Modified code for oscilloscope triggering, separate height and width handling
+* 05    10MAR2021       SK      output file name modification->freq with precision 2
 
 *H*/
 
@@ -61,6 +62,7 @@ REF NO  VERSION DATE    WHO     DETAIL
 #include <iostream>
 #include <cstdlib>
 #include <vector>
+#include <sstream>
 //#include "util.hpp"
 
 //#include <string>
@@ -71,6 +73,15 @@ unsigned int lut_size = 48000;  // lookup table initial size
 
 // multiplier for 16 bit signal, the range of points [-0.5, +0.5], so after multiplication, range: [-20000, 20000]
 const unsigned int amp_multiplyer = 40000;
+
+template <typename T>
+std::string to_string_with_precision(const T a_value, const int n = 2)
+{
+    std::ostringstream out;
+    out.precision(n);
+    out << std::fixed << a_value;
+    return out.str();
+}
 
 namespace little_endian_io
 {
@@ -535,7 +546,7 @@ int main(int argc, char* argv[])
     
     // ios is base class for streams
     // ofstream = stream class to write on files, ios::binary is static constant, ios is under std namespace
-    std::ofstream file_wav(std::to_string(seconds) + "sec," + std::to_string(freq) + "Hz," + signal_name + ".wav", std::ios::binary); 
+    std::ofstream file_wav(signal_name + "," + std::to_string(seconds) + "sec," + to_string_with_precision(freq) + "Hz," + ".wav", std::ios::binary); 
     // Write the file headers
     file_wav << "RIFF";     // 4bytes, each char is 1 byte
     little_endian_io::write_word(file_wav, 36 + subchunk2_size, 4);
