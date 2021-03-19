@@ -54,6 +54,7 @@ REF NO  VERSION DATE    WHO     DETAIL
 * 03    02MAR2021       SK      Modified error checking code
 * 04    03MAR2021       SK      Modified code for oscilloscope triggering, separate height and width handling
 * 05    10MAR2021       SK      output file name modification->freq with precision 2
+* 06    19MAR2021       SK      Bug fix: g++ compiler compatibility
 
 *H*/
 
@@ -63,6 +64,7 @@ REF NO  VERSION DATE    WHO     DETAIL
 #include <cstdlib>
 #include <vector>
 #include <sstream>
+#include <climits>
 //#include "util.hpp"
 
 //#include <string>
@@ -93,13 +95,13 @@ namespace little_endian_io
         switch (size)
         {
         case 2:
-            value =  static_cast <u_int16_t> (value);
+            value =  static_cast <uint16_t> (value);
             break;
         case 4:
-            value =  static_cast <u_int32_t> (value);
+            value =  static_cast <uint32_t> (value);
             break;
         default:
-            value =  static_cast <u_int32_t> (value);
+            value =  static_cast <uint32_t> (value);
             break;
         }
         
