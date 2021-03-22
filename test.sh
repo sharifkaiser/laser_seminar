@@ -14,6 +14,10 @@
 
 AUTHOR :    A K M Sharif Kaiser(SK)        START DATE : 27 Feb 2021
 
+CHANGES :
+REF NO  VERSION DATE    WHO     DETAIL
+* 02    19Mar2021       SK      OS detection and build accordingly, bug fix
+
 #H-#
 COMMENT
 
@@ -34,6 +38,7 @@ re='^[+-]?[0-9]+([.][0-9]+)?$'                          # regular expression for
 sampling_rate=48000
 max_freq=$((sampling_rate / 2)) # nyquist theorem, (bash arithmetic:no space after brackets)
 duration=10 # in seconds
+OS_name=""
 
 # begin: log file related code
 create_log_file(){
@@ -47,21 +52,46 @@ create_log_file(){
 }
 
 write_screen_log () {
-    printf "$1" | tee -a "$log_file"        # writes argument in both screen and in log file
+    printf "$1" | tee -a $log_file        # writes argument in both screen and in log file
 }
 
 # end: log file related code
 
 # begin: build cpp file
-CC=/usr/bin/clang++         # clang++ compiler
-EXEC=svg_to_wav
-SRC=svg_to_wav.cpp
+# Find OS
+if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+        OS_name="linux"
+elif [[ "$OSTYPE" == "darwin"* ]]; then
+        OS_name="macOS"
+elif [[ "$OSTYPE" == "cygwin" ]]; then
+        OS_name="windows"      # POSIX compatibility layer and Linux environment emulation for Windows
+elif [[ "$OSTYPE" == "msys" ]]; then
+        OS_name="windows"
+elif [[ "$OSTYPE" == "win32" ]]; then
+        OS_name="windows"
+fi
 
-if [[ "$SRC" -nt $EXEC ]]; then                     # if source newer than executable file, then build
+
+EXEC="svg_to_wav"
+SRC="svg_to_wav.cpp"
+
+if [[ "$SRC" -nt "$EXEC" ]]; then                     # if source newer than executable file, then build
     write_screen_log "Rebuilding $EXEC...\n"
-    $CC -std=c++17 -stdlib=libc++ -g $SRC -o $EXEC   # build, see tasks.json file for build details in vscode
+
+    if [[ "$OS_name" = "macOS" ]]; then
+        CC=/usr/bin/clang++         # clang++ is default compiler for macOS
+        $CC -std=c++17 -stdlib=libc++ -g $SRC -o $EXEC   # build, see tasks.json file for build details in vscode
+        write_screen_log "$CC -std=c++17 -stdlib=libc++ -g $SRC -o $EXEC\n"
+    elif [[ "$OS_name" = "linux" ]]; then
+        CC=/usr/bin/g++         # g++ compiler for ubuntu
+        $CC -g --std=c++17 $SRC -o $EXEC
+        write_screen_log "$CC -g --std=c++17 $SRC -o $EXEC\n"
+    elif [[ "$OS_name" = "windows" ]]; then
+        CC=/usr/bin/g++         # mingw compiler for windows
+    fi
 fi
 # end: build cpp file
+
 
 # start: validate_input_file -> check errors in an input text file
 validate_input_file(){
