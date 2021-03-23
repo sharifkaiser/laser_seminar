@@ -2,3 +2,5 @@
 *.log
 setu.cpp
 .vscode/
+*.exe
+*.dSYM
