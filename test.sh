@@ -17,6 +17,7 @@ AUTHOR :    A K M Sharif Kaiser(SK)        START DATE : 27 Feb 2021
 CHANGES :
 REF NO  VERSION DATE    WHO     DETAIL
 * 02    19Mar2021       SK      OS detection and build accordingly, bug fix
+* 03    23Mar2021       SK      Windows compatibility
 
 #H-#
 COMMENT
@@ -57,45 +58,62 @@ write_screen_log () {
 
 # end: log file related code
 
-# begin: build cpp file
-# Find OS
-if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-        OS_name="linux"
-elif [[ "$OSTYPE" == "darwin"* ]]; then
-        OS_name="macOS"
-elif [[ "$OSTYPE" == "cygwin" ]]; then
-        OS_name="windows"      # POSIX compatibility layer and Linux environment emulation for Windows
-elif [[ "$OSTYPE" == "msys" ]]; then
-        OS_name="windows"
-elif [[ "$OSTYPE" == "win32" ]]; then
-        OS_name="windows"
-fi
-
-
-EXEC="svg_to_wav"
-SRC="svg_to_wav.cpp"
-
-if [[ "$SRC" -nt "$EXEC" ]]; then                     # if source newer than executable file, then build
-    write_screen_log "Rebuilding $EXEC...\n"
-
-    if [[ "$OS_name" = "macOS" ]]; then
-        CC=/usr/bin/clang++         # clang++ is default compiler for macOS
-        $CC -std=c++17 -stdlib=libc++ -g $SRC -o $EXEC   # build, see tasks.json file for build details in vscode
-        write_screen_log "$CC -std=c++17 -stdlib=libc++ -g $SRC -o $EXEC\n"
-    elif [[ "$OS_name" = "linux" ]]; then
-        CC=/usr/bin/g++         # g++ compiler for ubuntu
-        $CC -g --std=c++17 $SRC -o $EXEC
-        write_screen_log "$CC -g --std=c++17 $SRC -o $EXEC\n"
-    elif [[ "$OS_name" = "windows" ]]; then
-        CC=/usr/bin/g++         # mingw compiler for windows
+detect_OS_and_build () {
+    # Find OS
+    if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+            OS_name="linux"
+    elif [[ "$OSTYPE" == "darwin"* ]]; then
+            OS_name="macOS"
+    elif [[ "$OSTYPE" == "cygwin" ]]; then
+            OS_name="windows"      # POSIX compatibility layer and Linux environment emulation for Windows
+    elif [[ "$OSTYPE" == "msys" ]]; then
+            OS_name="windows"
+    elif [[ "$OSTYPE" == "win32" ]]; then
+            OS_name="windows"
     fi
-fi
-# end: build cpp file
+    write_screen_log "OS: $OS_name ($OSTYPE)\n"
+
+    if [[ "$OS_name" = "windows" ]]; then
+        EXEC="svg_to_wav.exe"       # windows executable file
+    else
+        EXEC="svg_to_wav"           # for linux and macOS
+    fi
+
+    SRC="svg_to_wav.cpp"
+
+    if [[ "$SRC" -nt "$EXEC" ]]; then                     # if source newer than executable file, then build
+        write_screen_log "Rebuilding $SRC...\n"
+
+        if [[ "$OS_name" = "macOS" ]]; then
+            CC=/usr/bin/clang++         # clang++ is default compiler for macOS
+            $CC -std=c++17 -stdlib=libc++ -g $SRC -o $EXEC   # build, see tasks.json file for build details in vscode
+            write_screen_log "$CC -std=c++17 -stdlib=libc++ -g $SRC -o $EXEC\n"
+        elif [[ "$OS_name" = "linux" ]]; then
+            CC=/usr/bin/g++         # g++ compiler for ubuntu
+            $CC -g --std=c++17 $SRC -o $EXEC
+            write_screen_log "$CC -g --std=c++17 $SRC -o $EXEC\n"
+        elif [[ "$OS_name" = "windows" ]]; then
+            write_screen_log "inside windows\n"
+            CC=g++         # msys mingw64 compiler for windows (assuming environment path added to windows)
+            $CC -g --std=c++17 $SRC -o $EXEC
+            write_screen_log "$CC -g --std=c++17 $SRC -o $EXEC\n"
+        fi
+    fi
+}
+
+# end: detect_OS_and_build
 
 
 # start: validate_input_file -> check errors in an input text file
 validate_input_file(){
-    local file_name=$1 #arg: $1=filename 
+    local file_name=$1 #arg: $1=filename
+
+    # for windows OS, remove the crlf from text file, make txt as unix
+    if [[ "$OS_name" = "windows" ]]; then
+        dos2unix $file_name
+        write_screen_log "Converting $file_name to unix format"
+    fi
+
     is_valid=true    # initialize as valid, e.g. no error found 
     if [[ -s "$file_name" ]]; then                             # check whether file exist and not empty
         if [[ -r "$file_name" ]]; then                         # check if file readable
@@ -103,9 +121,8 @@ validate_input_file(){
             # -r prevents backslash escapes from being interpreted
             # [ -n "$line" ] to include the last line if the last char of file is not newline 
             i=1
-            while read -r line || [ -n "$line" ]; do
-
-                # test the if first line validity
+            while read -r line || [ -n "$line" ]; do                
+                # test whether first has dimensions in h|w format
                 if [[ "$i" = 1 ]] ; then
                     IFS="|"                             # set | as a delimiter, used to check height|width
                     read -a strarr <<< "$line"          # Read the split words into an array
@@ -206,6 +223,7 @@ if [[ "$#" -ge 1 ]]; then
     else
         # begin: single file test
         create_log_file
+        detect_OS_and_build
         write_screen_log "Single file test starting...\n"
         validate_input_file $1
         is_file_valid=$?            # catch return val
@@ -221,6 +239,7 @@ if [[ "$#" -ge 1 ]]; then
 else
     # bash has no args, means batch testing
     create_log_file
+    detect_OS_and_build
     write_screen_log "Batch test starting...\n"
     for file in $(find . -type f -maxdepth 1 -name "*.txt")
     do
