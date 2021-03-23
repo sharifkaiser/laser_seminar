@@ -57,7 +57,7 @@ REF NO  VERSION DATE    WHO     DETAIL
 * 06    19MAR2021       SK      Bug fix: g++ compiler compatibility
 
 *H*/
-
+#define _USE_MATH_DEFINES
 #include <cmath>
 #include <fstream>
 #include <iostream>
