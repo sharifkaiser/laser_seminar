@@ -1,0 +1,28 @@
+{
+	// See https://go.microsoft.com/fwlink/?LinkId=733558
+	// for the documentation about the tasks.json format
+	"version": "2.0.0",
+	"tasks": [
+	  {
+		"type": "cppbuild",
+		"label": "clang++ build active file",
+		"command": "/usr/bin/clang++",	// build command 
+		"args": [
+		  "-std=c++17",
+		  "-stdlib=libc++",
+		  "-g",
+		  "${file}",	// "${workspaceFolder}/*.cpp" to build all cpp files in folder
+		  "-o",
+		  "${fileDirname}/${fileBasenameNoExtension}" // "${workspaceFolder}/abc.out" where abc.out is output file name
+		],
+		"options": {
+		  "cwd": "${workspaceFolder}"
+		},
+		"problemMatcher": ["$gcc"],
+		"group": {
+		  "kind": "build",
+		  "isDefault": true
+		}
+	  }
+	]
+  }
