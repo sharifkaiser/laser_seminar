@@ -4,3 +4,4 @@ setu.cpp
 .vscode/
 *.exe
 *.dSYM
+.DS_Store

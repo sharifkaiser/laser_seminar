@@ -6,7 +6,7 @@
 *
 
 How to call: 
-    1  ./add_dim_to_points
+    1  ./add_dim_to_points   // adds dimension to all text files in current folder
 
 AUTHOR :    A K M Sharif Kaiser(SK)        START DATE : 09 Mar 2021
 
@@ -18,8 +18,8 @@ AUTHOR :    A K M Sharif Kaiser(SK)        START DATE : 09 Mar 2021
 #include <fstream>
 #include <vector>
 #include <regex>
-#include<string>
-#include<cstdio>
+#include <string>
+#include <cstdio>
 namespace fs = std::filesystem;
 
 // Global variables
