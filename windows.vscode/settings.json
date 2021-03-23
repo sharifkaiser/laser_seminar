@@ -1,32 +1,14 @@
 {
-    "shellLauncher.shells.windows": [
-        {
-            "shell": "C:\\Windows\\System32\\cmd.exe",
-            "label": "cmd"
-        },
-        {
-            "shell": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
-            "label": "PowerShell"
-        },
-        {
-            "shell": "C:\\Program Files\\Git\\bin\\bash.exe",
-            "label": "Git bash"
-        },
-        {
-            "shell": "C:\\Windows\\System32\\bash.exe",
-            "label": "WSL Bash"
-        },
-        {
-            "shell": "C:\\msys64\\usr\\bin\\bash.exe",
-            "label": "MSYS2",
-            "args": ["--login", "-i"],
-            "env": {
-                "MSYSTEM": "MINGW64",
-                "CHERE_INVOKING": "1",
-                "MSYS2_PATH_TYPE": "inherit"
-            }        
-        }
+    /*
+    "terminal.integrated.shell.windows": "C:\\msys64\\usr\\bin\\bash.exe",
+    "terminal.integrated.shellArgs.windows": [
+        "--login",
+        "-i"
     ],
+    "terminal.integrated.env.windows": {
+        "MSYSTEM": "MINGW64",
+        "CHERE_INVOKING":"1"
+    }*/
     "files.associations": {
         "fstream": "cpp"
     }
