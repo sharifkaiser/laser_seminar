@@ -111,7 +111,7 @@ validate_input_file(){
     # for windows OS, remove the crlf from text file, make txt as unix
     if [[ "$OS_name" = "windows" ]]; then
         dos2unix $file_name
-        write_screen_log "Converting $file_name to unix format"
+        write_screen_log "Converting $file_name to unix format...\n"
     fi
 
     is_valid=true    # initialize as valid, e.g. no error found 
