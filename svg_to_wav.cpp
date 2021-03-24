@@ -1,5 +1,5 @@
 /*H**********************************************************************
-* FILENAME :        svg_to_wav.cpp
+* FILENAME :        svg_to_wav.cpp 
 *
 * DESCRIPTION :
 *       Converts text file input containing svg image points into wav signal of desired frequency
@@ -55,6 +55,10 @@ REF NO  VERSION DATE    WHO     DETAIL
 * 04    03MAR2021       SK      Modified code for oscilloscope triggering, separate height and width handling
 * 05    10MAR2021       SK      output file name modification->freq with precision 2
 * 06    19MAR2021       SK      Bug fix: g++ compiler compatibility
+* 07    24MAR2021       SK      Bug Fix: dynamic memory allocation issue
+
+***** Coding tip: try to avoid unsigned int and use fixed width ints, also use std:: with fixed width ints like std::uint32_t  *****
+** dynamic: https://stackoverflow.com/questions/216259/is-there-a-max-array-length-limit-in-c
 
 *H*/
 #define _USE_MATH_DEFINES
@@ -68,13 +72,13 @@ REF NO  VERSION DATE    WHO     DETAIL
 //#include "util.hpp"
 
 //#include <string>
-unsigned int TRIGGER_THRESHOLD = 32500;
+std::uint16_t TRIGGER_THRESHOLD = 32500;
 enum wave_type {rectangle = 0, sine = 1, input = 3};
 int canvas_h = 400, canvas_w = 400;    // input from user, or parse from svg file
-unsigned int lut_size = 48000;  // lookup table initial size
+std::uint32_t lut_size = 48000;  // lookup table initial size
 
 // multiplier for 16 bit signal, the range of points [-0.5, +0.5], so after multiplication, range: [-20000, 20000]
-const unsigned int amp_multiplyer = 40000;
+std::uint32_t amp_multiplyer = 40000;
 
 template <typename T>
 std::string to_string_with_precision(const T a_value, const int n = 2)
@@ -211,40 +215,11 @@ int set_validate_input_args(int argc, char* argv[], int* seconds, float* freq, s
     return 0;   // no error
 }
 
-/*
-void set_wav_header(int* num_samples, int* sampling_rate){
-    const int BITS_PER_SAMPLE = 16;
-    const int NUM_CHANNELS = 2;
-
-    int block_align = (int)(NUM_CHANNELS * BITS_PER_SAMPLE/8);
-    int subchunk2_size = *num_samples * block_align;
-    int byte_rate = *sampling_rate * block_align;
-
-    // check machine endian
-    // if (endian::isLittleEndian() == 1)
-
-    // Write the file headers
-    file_wav << "RIFF";     // 4bytes, each char is 1 byte
-    little_endian_io::write_word(file_wav, 36 + subchunk2_size, 4);
-    file_wav << "WAVEfmt "; 
-    little_endian_io::write_word(file_wav, 16, 4);  // no extension data, (16=size of rest subchunk for PCM)
-    little_endian_io::write_word(file_wav, 1, 2);  // 1=PCM - integer samples (e.g. linear quantization means no compression)
-    little_endian_io::write_word(file_wav, NUM_CHANNELS, 2 );  // two channels (stereo file)
-    little_endian_io::write_word(file_wav, sampling_rate, 4);  // sampling rate (Hz)
-    little_endian_io::write_word(file_wav, byte_rate, 4);  // 176400=ByteRate (Sample Rate=44100 * BitsPerSample=16 * Channels=2) / 8
-    little_endian_io::write_word(file_wav, block_align, 2);  // data block size=number of bytes for one sample (NumChannels=2 * BitsPerSample=16/8)
-    little_endian_io::write_word(file_wav, BITS_PER_SAMPLE, 2);  // bits per sample=16 (use a multiple of 8)
-}
-*/
-
-// Creates sound buffer and returns 1 on success
-void create_sample_buffer(int16_t x_buff[], int16_t y_buff[], 
-                          float freq, int Fs, int num_samples, int wave_typ,
-                        std::vector<Point> &scaled_points, int interpolation_factor)
+void create_sample_buffer(int16_t x_buff[], int16_t y_buff[], float freq, int Fs, int num_samples, int wave_typ, std::vector<Point> &scaled_points, int interpolation_factor)
 {
-    int16_t lut[lut_size];      // lookup table used if wave is sine/rectangle
-    int16_t lut_x[lut_size];      // lookup table for x values for input svg points
-    int16_t lut_y[lut_size];      // lookup table for y values for input svg points
+    std::int16_t * lut = new std::int16_t [lut_size];      // lookup table used if wave is sine/rectangle
+    std::int16_t * lut_x = new std::int16_t [lut_size];      // lookup table for x values for input svg points
+    std::int16_t * lut_y = new std::int16_t [lut_size];      // lookup table for y values for input svg points
     const float phase_increment = (freq/(float)Fs) * (float)lut_size;
     float phase_x = 0.0f, phase_y = 0.0f;   // phase accumulator for sine and rectangular wave
     float phase = 0.0f;    // phase for custom input svg points
@@ -274,7 +249,7 @@ void create_sample_buffer(int16_t x_buff[], int16_t y_buff[],
         phase_y = phase_x + (lut_size/4) ;   // phase accumulator for cosine wave
         break;
     
-    case wave_type::input:
+    case wave_type::input:        
         if (interpolation_factor == 0)  // no interpolation
         {
             int i, reverse_counter;
@@ -298,7 +273,7 @@ void create_sample_buffer(int16_t x_buff[], int16_t y_buff[],
         {
             enum interpolation_type {increment = 1, decreament = -1, same = 0};
             interpolation_type interpolation_type_x, interpolation_type_y;
-            unsigned int i, interpolation_counter, lut_counter = 0;
+            int i, interpolation_counter, lut_counter = 0;
             double current_x, current_y, next_x, next_y, inc_x, inc_y, interpolated_x, interpolated_y;
 
             // Fill lut with forward points
@@ -397,7 +372,7 @@ void create_sample_buffer(int16_t x_buff[], int16_t y_buff[],
             lut_x[lut_counter] = scaled_points.at(i).get_x();
             lut_y[lut_counter] = scaled_points.at(i).get_y();
 
-            /*-----------------  forward lut insertion done  ----------------------*/
+            //-----------------  forward lut insertion done  ----------------------
 
             // fill out rest half of lut with reverse values i.e. end -> start
             int reverse_counter = lut_counter; // point to the last index of the half filled lut
@@ -409,12 +384,11 @@ void create_sample_buffer(int16_t x_buff[], int16_t y_buff[],
                 reverse_counter--;
             }
 
-            // print lut
-            /*
-            for (i = 0; i < lut_size; i++){ 
-                std::cout <<"i=" << i << ",  x: " << lut_x[i] << ", y: " << lut_y[i] << std::endl;
-            }
-            */
+            // print lut, debug purpose
+            //for (i = 0; i < lut_size; i++){ 
+            //    std::cout <<"i=" << i << ",  x: " << lut_x[i] << ", y: " << lut_y[i] << std::endl;
+            // }
+            
         }        
 
     default:
@@ -466,13 +440,18 @@ void create_sample_buffer(int16_t x_buff[], int16_t y_buff[],
                     y_buff[i] = -32500;
                 }
             }
-            /*
-            if (x_buff[i] > 30000 || y_buff[i] > 30000){
-                std::cout << x_buff[i] << ", " << y_buff[i] << std::endl;
-            }
-            */
+            
+            //if (x_buff[i] > 30000 || y_buff[i] > 30000){
+            //    std::cout << x_buff[i] << ", " << y_buff[i] << std::endl;
+            //}
+            
         }
     }
+    
+    // free dynamically allocated memory
+    delete [] lut;
+    delete [] lut_x;
+    delete [] lut_y;
 }
 
 bool load_image_params(std::string file, std::vector<Point> &points, int* canvas_height, int* canvas_width)
@@ -561,14 +540,14 @@ int main(int argc, char* argv[])
     little_endian_io::write_word(file_wav, block_align, 2);  // data block size=number of bytes for one sample (NumChannels=2 * BitsPerSample=16/8)
     little_endian_io::write_word(file_wav, BITS_PER_SAMPLE, 2);  // bits per sample=16 (use a multiple of 8)
 
-/*
+
     {   // print input params
         std::cout << "freq: " << freq << std::endl;
         std::cout << "sampling_rate: " << sampling_rate << std::endl;
         std::cout << "num_samples: " << num_samples << std::endl;
         std::cout << "pionts file name: " << points_file << std::endl;        
     }
- */
+ 
     std::vector<Point> points;
     if(!load_image_params(points_file, points, &canvas_h, &canvas_w)){    // load points and canvus dimensions, all passed by ref
         return 0;   // error occured, exit main
@@ -605,10 +584,7 @@ int main(int argc, char* argv[])
     if (lut_size > num_samples){
         std::cout << "too many points!" << std::endl;
         return 0;
-    }
-
-    std::cout << "#interpolated points: " << interpolation_factor << ", Lookup table size: " << lut_size << std::endl; 
-
+    }    
 
     // Write the data chunk header
     size_t data_chunk_pos = file_wav.tellp();
@@ -625,22 +601,33 @@ int main(int argc, char* argv[])
     {
         wave = wave_type::input;  // input comes from custom svg
     }
-        
-    int16_t x_buff[num_samples];
-    int16_t y_buff[num_samples];
+
+    // Using dynamic array as it lives on heap i.e. array size limited only by OS/Hardware
+    // any static array must know array size in compile time i.e. array size must be a number, not variable
+    std::int16_t * x_buff = new std::int16_t [num_samples];
+    std::int16_t * y_buff = new std::int16_t [num_samples];
+
+    std::cout << "#interpolated points: " << interpolation_factor << ", Lookup table size: " << lut_size << std::endl;
+    //test(x_buff, y_buff, freq, sampling_rate, num_samples, wave);
     create_sample_buffer(x_buff, y_buff, freq, sampling_rate, num_samples, wave, points, interpolation_factor);
+    
 
     // write samples to wav file
     for(int i = 0; i < num_samples; ++i)
     {
         little_endian_io::write_word(file_wav, x_buff[i], 2); // write sample to left channel
         little_endian_io::write_word(file_wav, y_buff[i], 2); // write sample to right channel
-/*
-        std::cout << "i: " << i << std::endl; // left buff vals
-        std::cout << "left buff: " << x_buff[i] << std::endl; // left buff vals
-        std::cout << "right: " << y_buff[i] << std::endl; // left buff vals
-*/
+
+        // std::cout << "i: " << i << std::endl; // left buff vals
+        // std::cout << "left buff: " << x_buff[i] << std::endl; // left buff vals
+        // std::cout << "right: " << y_buff[i] << std::endl; // left buff vals
+
     }
+
+    // free dynamically allocated memory
+    delete[] x_buff;
+    delete[] y_buff;
+
     file_wav.close();
 
     return 0;
