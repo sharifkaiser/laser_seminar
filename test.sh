@@ -8,7 +8,7 @@
 #                       of an image) to wav signal of desired frequency
 #
 # PUBLIC FUNCTIONS :
-#   exec_single_file: takes four arguments, takes a single file as input and calls svg_towav execution for it 
+#   create_wav: takes four arguments, takes a single file as input and calls svg_towav execution for it 
 #   write_screen_log: printf to both terminal and log
 #
 
@@ -18,6 +18,7 @@ CHANGES :
 REF NO  VERSION DATE    WHO     DETAIL
 * 02    19Mar2021       SK      OS detection and build accordingly, bug fix
 * 03    23Mar2021       SK      Windows compatibility
+* 04    25Mar2021       SK      Dimension addition to existing points file
 
 #H-#
 COMMENT
@@ -74,29 +75,49 @@ detect_OS_and_build () {
     write_screen_log "OS: $OS_name ($OSTYPE)\n"
 
     if [[ "$OS_name" = "windows" ]]; then
-        EXEC="svg_to_wav.exe"       # windows executable file
+        EXEC_add_dim="add_dim_to_points.exe"
+        EXEC_to_wav="svg_to_wav.exe"       # windows executable file
     else
-        EXEC="svg_to_wav"           # for linux and macOS
+        EXEC_add_dim="add_dim_to_points"
+        EXEC_to_wav="svg_to_wav"           # for linux and macOS
     fi
 
-    SRC="svg_to_wav.cpp"
+    SRC_to_wav="svg_to_wav.cpp"
+    SRC_add_dim="add_dim_to_points.cpp"
 
-    if [[ "$SRC" -nt "$EXEC" ]]; then                     # if source newer than executable file, then build
-        write_screen_log "Rebuilding $SRC...\n"
+    if [[ "$SRC_add_dim" -nt "$EXEC_add_dim" ]]; then                     # if source newer than executable file, then build
+        write_screen_log "Rebuilding $SRC_add_dim...\n"
 
         if [[ "$OS_name" = "macOS" ]]; then
             CC=/usr/bin/clang++         # clang++ is default compiler for macOS
-            $CC -std=c++17 -stdlib=libc++ -g $SRC -o $EXEC   # build, see tasks.json file for build details in vscode
-            write_screen_log "$CC -std=c++17 -stdlib=libc++ -g $SRC -o $EXEC\n"
+            $CC -std=c++17 -stdlib=libc++ -g $SRC_add_dim -o $EXEC_add_dim   # build, see tasks.json file for build details in vscode
+            write_screen_log "$CC -std=c++17 -stdlib=libc++ -g $SRC_add_dim -o $EXEC_add_dim\n"
         elif [[ "$OS_name" = "linux" ]]; then
             CC=/usr/bin/g++         # g++ compiler for ubuntu
-            $CC -g --std=c++17 $SRC -o $EXEC
-            write_screen_log "$CC -g --std=c++17 $SRC -o $EXEC\n"
+            $CC -g --std=c++17 $SRC_add_dim -o $EXEC_add_dim
+            write_screen_log "$CC -g --std=c++17 $SRC_add_dim -o $EXEC_add_dim\n"
         elif [[ "$OS_name" = "windows" ]]; then
-            write_screen_log "inside windows\n"
             CC=g++         # msys mingw64 compiler for windows (assuming environment path added to windows)
-            $CC -g --std=c++17 $SRC -o $EXEC
-            write_screen_log "$CC -g --std=c++17 $SRC -o $EXEC\n"
+            $CC -g --std=c++17 $SRC_add_dim -o $EXEC_add_dim
+            write_screen_log "$CC -g --std=c++17 $SRC_add_dim -o $EXEC_add_dim\n"
+        fi
+    fi
+
+    if [[ "$SRC_to_wav" -nt "$EXEC_to_wav" ]]; then                     # if source newer than executable file, then build
+        write_screen_log "Rebuilding $SRC_to_wav...\n"
+
+        if [[ "$OS_name" = "macOS" ]]; then
+            CC=/usr/bin/clang++         # clang++ is default compiler for macOS
+            $CC -std=c++17 -stdlib=libc++ -g $SRC_to_wav -o $EXEC_to_wav   # build, see tasks.json file for build details in vscode
+            write_screen_log "$CC -std=c++17 -stdlib=libc++ -g $SRC_to_wav -o $EXEC_to_wav\n"
+        elif [[ "$OS_name" = "linux" ]]; then
+            CC=/usr/bin/g++         # g++ compiler for ubuntu
+            $CC -g --std=c++17 $SRC_to_wav -o $EXEC_to_wav
+            write_screen_log "$CC -g --std=c++17 $SRC_to_wav -o $EXEC_to_wav\n"
+        elif [[ "$OS_name" = "windows" ]]; then
+            CC=g++         # msys mingw64 compiler for windows (assuming environment path added to windows)
+            $CC -g --std=c++17 $SRC_to_wav -o $EXEC_to_wav
+            write_screen_log "$CC -g --std=c++17 $SRC_to_wav -o $EXEC_to_wav\n"
         fi
     fi
 }
@@ -109,10 +130,8 @@ validate_input_file(){
     local file_name=$1 #arg: $1=filename
 
     # for windows OS, remove the crlf from text file, make txt as unix
-    if [[ "$OS_name" = "windows" ]]; then
-        dos2unix $file_name
-        write_screen_log "Converting $file_name to unix format...\n"
-    fi
+    dos2unix $file_name
+    #write_screen_log "Converting $file_name to unix format...\n"
 
     is_valid=true    # initialize as valid, e.g. no error found 
     if [[ -s "$file_name" ]]; then                             # check whether file exist and not empty
@@ -171,7 +190,7 @@ validate_input_file(){
 
             # check end of file exists in last line
             if ! [[ $( tail -n 1 "$file_name" ) = "#" ]]; then
-                write_screen_log "FAIL($file_name): The last line must contain # to denote end of file.\n"
+                write_screen_log "FAIL($file_name): The last line must contain # to denote end of file. Please create a new line and append #\n"
                 is_valid=false
             fi
 
@@ -190,15 +209,14 @@ validate_input_file(){
 }
 # end: validate_input_file function
 
-exec_single_file () {                               # function for executing code with single file and arguments
+create_wav () {                               # function for executing code with single file and arguments
     local file_name=$1  # assign arg to a meaningful name file_name, it is a local var
     if [[ $file_name =~ ^./ ]]; then    # check if file name starts with ./ (same dir for mac)
         file_name=${file_name:2};   # removes first 2 characters ./ from file name
     fi
-    
-    write_screen_log "Executing: ./$EXEC $file_name $2 $3 $4 ...\n"
 
-    ./$EXEC $file_name $2 $3 $4                             # calls main function, args: filename seconds freq sampling_rate 
+    write_screen_log "Executing: ./$EXEC_to_wav $file_name $2 $3 $4 ...\n"
+    ./$EXEC_to_wav $file_name $2 $3 $4                             # calls main function, args: filename seconds freq sampling_rate 
     # error checking with arguments
     if [[ "$?" != 0 ]]; then    # if main function returned non-zero
         write_screen_log "Processing FAIL: Points of $file_name was not processed. Please provide valid arguments for execution.\n\n"
@@ -206,9 +224,9 @@ exec_single_file () {                               # function for executing cod
         write_screen_log "Processing SUCCESS: Points of $file_name has been processed successfully.\n\n"
     fi
 }
-# end: exec_single_file function
+# end: create_wav function
 
-# check if bash has at least 1 arg (filename), having argument means it will process a signle file
+# check if bash has at least 1 arg (filename), having argument means it will process a single file
 if [[ "$#" -ge 1 ]]; then
     
     if [ "$1" == "-h" ] ; then
@@ -225,22 +243,33 @@ if [[ "$#" -ge 1 ]]; then
         create_log_file
         detect_OS_and_build
         write_screen_log "Single file test starting...\n"
+        
+        # Add dimension to file
+        write_screen_log "Executing: ./$EXEC_add_dim $1 ...\n"
+        ./$EXEC_add_dim $1
+
         validate_input_file $1
         is_file_valid=$?            # catch return val
 
         if [[ $is_file_valid -eq 10 ]]; then  # false=not valid, skip processing this file
             write_screen_log "FAIL: $1 will not be processed due to errors.\n\n"
         else
-            exec_single_file $@         # execute with arguments
+            create_wav $@         # execute with arguments
         fi
         # end: single file test
     fi
 
 else
+
     # bash has no args, means batch testing
     create_log_file
     detect_OS_and_build
     write_screen_log "Batch test starting...\n"
+
+    # Add dimension to all files in the current dir
+    write_screen_log "Executing: ./$EXEC_add_dim ...\n"
+    ./$EXEC_add_dim
+
     for file in $(find . -type f -maxdepth 1 -name "*.txt")
     do
         validate_input_file $file
@@ -261,14 +290,14 @@ else
             freq=$(expr "scale=1;1/$duration" | bc)    #freq is a string, scale=1 means keep 1 places after decimal
             
             # the calculated freq is a string, call main function once while loop to avoid calculation problems due to string
-            exec_single_file $file $duration $freq $sampling_rate    # function call for exec e.g. calls cpp main function (only input file arg is mandatory)
+            create_wav $file $duration $freq $sampling_rate    # function call for exec e.g. calls cpp main function (only input file arg is mandatory)
 
             # calculate second frequency
             freq=$(expr $freq*10 | bc)  # freq=freq*10
             freq=${freq%.*} # as freq contains a string with a decimal, get rid of decimal part from freq
 
             while [ $freq -le $max_freq ]; do       # -le means less or equal
-                exec_single_file $file $duration $freq $sampling_rate    # function call for exec e.g. calls cpp main function (only input file arg is mandatory)
+                create_wav $file $duration $freq $sampling_rate    # function call for exec e.g. calls cpp main function (only input file arg is mandatory)
                 freq=$((freq*10))
             done
 
