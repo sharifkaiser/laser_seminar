@@ -10,6 +10,10 @@ How to call:
 
 AUTHOR :    A K M Sharif Kaiser(SK)        START DATE : 09 Mar 2021
 
+CHANGES :
+REF NO  VERSION DATE    WHO     DETAIL
+* 02    25MAR2021       SK      Dimension change from absolute height|width to window relative height|width
+
 *H*/
 
 
@@ -91,13 +95,9 @@ void process_file(std::string & file_name){
 
         if (is_processing_reqd)
         {
-            x_max = *std::max_element(x_coordinates.begin(), x_coordinates.end());
-            x_min = *std::min_element(x_coordinates.begin(), x_coordinates.end());
-            y_max = *std::max_element(y_coordinates.begin(), y_coordinates.end());
-            y_min = *std::min_element(y_coordinates.begin(), y_coordinates.end());
-
-            width = (x_max - x_min)<0 ? (x_max - x_min)*(-1) : (x_max - x_min); // absolute value
-            height = (y_max - y_min)<0 ? (y_max - y_min)*(-1) : (y_max - y_min); // absolute value
+            // image window always starts from (0,0), so only max coordinate is relevant for dimension
+            width = *std::max_element(x_coordinates.begin(), x_coordinates.end());
+            height = *std::max_element(y_coordinates.begin(), y_coordinates.end());
 
             first_line = std::to_string((int)height) + "|" + std::to_string((int)width); // First line height|width
 
@@ -149,7 +149,7 @@ int main(int argc, char* argv[])
     else
     {
         /* batch process: process all text files in current dir */
-        std::string path = "./";        // current dir in macOS
+        std::string path = "./";        // current dir
         for (const auto & entry : fs::directory_iterator(path)){
             if (std::regex_match(entry.path().string(), txt_regex)) {
                 std::cout << entry.path().string() << std::endl;
