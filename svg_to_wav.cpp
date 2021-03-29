@@ -56,6 +56,7 @@ REF NO  VERSION DATE    WHO     DETAIL
 * 05    10MAR2021       SK      output file name modification->freq with precision 2
 * 06    19MAR2021       SK      Bug fix: g++ compiler compatibility
 * 07    24MAR2021       SK      Bug Fix: dynamic memory allocation issue
+* 08    29MAR2021       SK      Arguments and default parameters readjustment
 
 ***** Coding tip: try to avoid unsigned int and use fixed width ints, also use std:: with fixed width ints like std::uint32_t  *****
 ** dynamic: https://stackoverflow.com/questions/216259/is-there-a-max-array-length-limit-in-c
@@ -75,7 +76,7 @@ REF NO  VERSION DATE    WHO     DETAIL
 std::uint16_t TRIGGER_THRESHOLD = 32500;
 enum wave_type {rectangle = 0, sine = 1, input = 3};
 int canvas_h = 400, canvas_w = 400;    // input from user, or parse from svg file
-std::uint32_t lut_size = 48000;  // lookup table initial size
+std::uint32_t lut_size = 480000;  // lookup table initial size
 
 // multiplier for 16 bit signal, the range of points [-0.5, +0.5], so after multiplication, range: [-20000, 20000]
 std::uint32_t amp_multiplyer = 40000;
@@ -185,9 +186,9 @@ int set_validate_input_args(int argc, char* argv[], int* seconds, float* freq, s
         char *endptr = NULL;
         points_file = argc > 1 ? argv[1] : points_file;
         *seconds = argc > 2 ? std::strtol (argv[2], &endptr, 10) : *seconds; // checking if arg exists
-        *freq = argc > 3 ? std::strtof (argv[3], &endptr) : *freq;
-        signal_name = argc > 4 ? argv[4] : signal_name;
-        *sampling_rate = argc > 5 ? std::strtol (argv[5], &endptr, 10): *sampling_rate;
+        *freq = argc > 3 ? std::strtof (argv[3], &endptr) : *freq;        
+        *sampling_rate = argc > 4 ? std::strtol (argv[4], &endptr, 10): *sampling_rate;
+        signal_name = argc > 5 ? argv[5] : signal_name;
 
         if (!points_file.length()){
             std::cout << "Invalid argument: please provide valid input points file name" << std::endl;
@@ -206,11 +207,12 @@ int set_validate_input_args(int argc, char* argv[], int* seconds, float* freq, s
             return -3;  // invalid frequency input
         }
         
+        /*
         if (!*sampling_rate || (*sampling_rate != 44100 && *sampling_rate != 48000))
         {
             std::cout << "Invalid argument: sampling rate must be either 44100 or 48000" << std::endl;
             return -4;  // invalid sampling rate
-        }
+        }*/
     } 
     return 0;   // no error
 }
@@ -503,7 +505,7 @@ int main(int argc, char* argv[])
 {
     // init default values for the signal
     int num_samples, sampling_rate = 48000, seconds = 10, retval;
-    float freq = 500;
+    float freq = 0.1;
     int signal = -1;
     std::string signal_name = "", points_file = "";
 
@@ -527,7 +529,7 @@ int main(int argc, char* argv[])
     
     // ios is base class for streams
     // ofstream = stream class to write on files, ios::binary is static constant, ios is under std namespace
-    std::ofstream file_wav(signal_name + "," + std::to_string(seconds) + "sec," + to_string_with_precision(freq) + "Hz," + ".wav", std::ios::binary); 
+    std::ofstream file_wav(signal_name + "," + std::to_string(seconds) + "sec," + to_string_with_precision(freq) + "Hz,SR"+ to_string_with_precision(sampling_rate) + ".wav", std::ios::binary); 
     // Write the file headers
     file_wav << "RIFF";     // 4bytes, each char is 1 byte
     little_endian_io::write_word(file_wav, 36 + subchunk2_size, 4);
@@ -580,12 +582,13 @@ int main(int argc, char* argv[])
         // redefine lut_size so that it only contains signal forward + backward 
         lut_size = 2 * ( input_points_count + interpolation_factor * (input_points_count - 1) );
     }
-    
+
+/*
     if (lut_size > num_samples){
         std::cout << "too many points!" << std::endl;
         return 0;
     }    
-
+*/
     // Write the data chunk header
     size_t data_chunk_pos = file_wav.tellp();
     file_wav << "data";
