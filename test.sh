@@ -8,7 +8,7 @@
 #                       of an image) to wav signal of desired frequency
 #
 # PUBLIC FUNCTIONS :
-#   create_wav: takes four arguments, takes a single file as input and calls svg_towav execution for it 
+#   create_wav_with_SRs: takes four arguments, takes a single file as input and calls svg_towav execution for it 
 #   write_screen_log: printf to both terminal and log
 #
 
@@ -19,6 +19,7 @@ REF NO  VERSION DATE    WHO     DETAIL
 * 02    19Mar2021       SK      OS detection and build accordingly, bug fix
 * 03    23Mar2021       SK      Windows compatibility
 * 04    25Mar2021       SK      Dimension addition to existing points file
+* 05    29MAR2021       SK      Added test cases with different sampling rates
 
 #H-#
 COMMENT
@@ -209,14 +210,28 @@ validate_input_file(){
 }
 # end: validate_input_file function
 
-create_wav () {                               # function for executing code with single file and arguments
+create_wav_with_SRs () {                               # function for executing code with different sampling rates
     local file_name=$1  # assign arg to a meaningful name file_name, it is a local var
     if [[ $file_name =~ ^./ ]]; then    # check if file name starts with ./ (same dir for mac)
         file_name=${file_name:2};   # removes first 2 characters ./ from file name
     fi
+    
+    duration=10
+    freq=0.1
 
-    write_screen_log "Executing: ./$EXEC_to_wav $file_name $2 $3 $4 ...\n"
-    ./$EXEC_to_wav $file_name $2 $3 $4                             # calls main function, args: filename seconds freq sampling_rate 
+    write_screen_log "Executing: ./$EXEC_to_wav $file_name $duration $freq with different sampling rates ...\n"
+    ./$EXEC_to_wav $file_name $duration $freq 480                             # calls main function, args: filename seconds freq sampling_rate 
+    ./$EXEC_to_wav $file_name $duration $freq 4800
+    ./$EXEC_to_wav $file_name $duration $freq 8000
+    ./$EXEC_to_wav $file_name $duration $freq 11025
+    ./$EXEC_to_wav $file_name $duration $freq 12000
+    ./$EXEC_to_wav $file_name $duration $freq 22050
+    ./$EXEC_to_wav $file_name $duration $freq 32000
+    ./$EXEC_to_wav $file_name $duration $freq 44100
+    ./$EXEC_to_wav $file_name $duration $freq 48000
+    ./$EXEC_to_wav $file_name $duration $freq 196000
+    ./$EXEC_to_wav $file_name $duration $freq 392000
+
     # error checking with arguments
     if [[ "$?" != 0 ]]; then    # if main function returned non-zero
         write_screen_log "Processing FAIL: Points of $file_name was not processed. Please provide valid arguments for execution.\n\n"
@@ -224,7 +239,7 @@ create_wav () {                               # function for executing code with
         write_screen_log "Processing SUCCESS: Points of $file_name has been processed successfully.\n\n"
     fi
 }
-# end: create_wav function
+# end: create_wav_with_SRs function
 
 # check if bash has at least 1 arg (filename), having argument means it will process a single file
 if [[ "$#" -ge 1 ]]; then
@@ -254,7 +269,7 @@ if [[ "$#" -ge 1 ]]; then
         if [[ $is_file_valid -eq 10 ]]; then  # false=not valid, skip processing this file
             write_screen_log "FAIL: $1 will not be processed due to errors.\n\n"
         else
-            create_wav $@         # execute with arguments
+            create_wav_with_SRs $1         # execute with arguments
         fi
         # end: single file test
     fi
@@ -283,23 +298,21 @@ else
         else    # input file is correct, call main function and run tests
             write_screen_log "SUCCESS: $file is a valid input file. It will now be processed.\n"
 
-            # create test cases for this input file
-            duration=10
             # calculate first frequency test case, to fit 1 full cycle of the signal in the entire 10 sec 
             # bc for floating op arithmetic, this must be echo'ed or expr returns string
-            freq=$(expr "scale=1;1/$duration" | bc)    #freq is a string, scale=1 means keep 1 places after decimal
+            #freq=$(expr "scale=1;1/$duration" | bc)    #freq is a string, scale=1 means keep 1 places after decimal
             
             # the calculated freq is a string, call main function once while loop to avoid calculation problems due to string
-            create_wav $file $duration $freq $sampling_rate    # function call for exec e.g. calls cpp main function (only input file arg is mandatory)
+            create_wav_with_SRs $file        # function call for exec e.g. calls cpp main function (only input file arg is mandatory)
 
             # calculate second frequency
-            freq=$(expr $freq*10 | bc)  # freq=freq*10
-            freq=${freq%.*} # as freq contains a string with a decimal, get rid of decimal part from freq
+            #freq=$(expr $freq*10 | bc)  # freq=freq*10
+            #freq=${freq%.*} # as freq contains a string with a decimal, get rid of decimal part from freq
 
-            while [ $freq -le $max_freq ]; do       # -le means less or equal
-                create_wav $file $duration $freq $sampling_rate    # function call for exec e.g. calls cpp main function (only input file arg is mandatory)
-                freq=$((freq*10))
-            done
+            #while [ $freq -le $max_freq ]; do       # -le means less or equal
+            #    create_wav_with_SRs $file $duration $freq $sampling_rate    # function call for exec e.g. calls cpp main function (only input file arg is mandatory)
+            #    freq=$((freq*10))
+            #done
 
         fi
 
