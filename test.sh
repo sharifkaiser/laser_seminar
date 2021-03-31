@@ -20,6 +20,7 @@ REF NO  VERSION DATE    WHO     DETAIL
 * 03    23Mar2021       SK      Windows compatibility
 * 04    25Mar2021       SK      Dimension addition to existing points file
 * 05    29MAR2021       SK      Added test cases with different sampling rates
+* 06    31MAR2021       SK      Warning message addition
 
 #H-#
 COMMENT
@@ -241,80 +242,93 @@ create_wav_with_SRs () {                               # function for executing 
 }
 # end: create_wav_with_SRs function
 
-# check if bash has at least 1 arg (filename), having argument means it will process a single file
-if [[ "$#" -ge 1 ]]; then
-    
-    if [ "$1" == "-h" ] ; then
-        # begin: check if arg is help and add help text
-        printf "Help: `basename $0` -h\n\n"
-        printf "Batch Test: `basename $0`\n"
-        printf "  This command takes all text files (containing image point) in the same directory and converts them to wav files with different frequencies.\n\n"
-        printf "Single Input Test: `basename $0` <input file name> [duration frequency sampling_rate]\n"
-        printf "  duration        : positive int \n  frequency       : positive number 0<frequency<=(sampling_rate/2)\n  sampling_rate   : 48000 (preferred) or 44100\n"
-        exit 0
-        #end: help text
+execute(){
+    # check if bash has at least 1 arg (filename), having argument means it will process a single file
+    if [[ "$#" -ge 1 ]]; then
+        
+        if [ "$1" == "-h" ] ; then
+            # begin: check if arg is help and add help text
+            printf "Help: `basename $0` -h\n\n"
+            printf "Batch Test: `basename $0`\n"
+            printf "  This command takes all text files (containing image point) in the same directory and converts them to wav files with different frequencies.\n\n"
+            printf "Single Input Test: `basename $0` <input file name> [duration frequency sampling_rate]\n"
+            printf "  duration        : positive int \n  frequency       : positive number 0<frequency<=(sampling_rate/2)\n  sampling_rate   : 48000 (preferred) or 44100\n"
+            exit 0
+            #end: help text
+        else
+            # begin: single file test
+            create_log_file
+            detect_OS_and_build
+            write_screen_log "Single file test starting...\n"
+            
+            # Add dimension to file
+            write_screen_log "Executing: ./$EXEC_add_dim $1 ...\n"
+            ./$EXEC_add_dim $1
+
+            validate_input_file $1
+            is_file_valid=$?            # catch return val
+
+            if [[ $is_file_valid -eq 10 ]]; then  # false=not valid, skip processing this file
+                write_screen_log "FAIL: $1 will not be processed due to errors.\n\n"
+            else
+                create_wav_with_SRs $1         # execute with arguments
+            fi
+            # end: single file test
+        fi
+
     else
-        # begin: single file test
+
+        # bash has no args, means batch testing
         create_log_file
         detect_OS_and_build
-        write_screen_log "Single file test starting...\n"
-        
-        # Add dimension to file
-        write_screen_log "Executing: ./$EXEC_add_dim $1 ...\n"
-        ./$EXEC_add_dim $1
+        write_screen_log "Batch test starting...\n"
 
-        validate_input_file $1
-        is_file_valid=$?            # catch return val
+        # Add dimension to all files in the current dir
+        write_screen_log "Executing: ./$EXEC_add_dim ...\n"
+        ./$EXEC_add_dim
 
-        if [[ $is_file_valid -eq 10 ]]; then  # false=not valid, skip processing this file
-            write_screen_log "FAIL: $1 will not be processed due to errors.\n\n"
-        else
-            create_wav_with_SRs $1         # execute with arguments
-        fi
-        # end: single file test
-    fi
+        for file in $(find . -type f -maxdepth 1 -name "*.txt")
+        do
+            validate_input_file $file
+            is_file_valid=$?    # catch return val
 
-else
-
-    # bash has no args, means batch testing
-    create_log_file
-    detect_OS_and_build
-    write_screen_log "Batch test starting...\n"
-
-    # Add dimension to all files in the current dir
-    write_screen_log "Executing: ./$EXEC_add_dim ...\n"
-    ./$EXEC_add_dim
-
-    for file in $(find . -type f -maxdepth 1 -name "*.txt")
-    do
-        validate_input_file $file
-        is_file_valid=$?    # catch return val
-
-        # file error check
-        if [[ $is_file_valid -eq 10 ]]; then  # false=not valid, skip processing this file
-            write_screen_log "FAIL: $file will not be processed due to errors.\n\n"
-            continue
-        
-        else    # input file is correct, call main function and run tests
-            write_screen_log "SUCCESS: $file is a valid input file. It will now be processed.\n"
-
-            # calculate first frequency test case, to fit 1 full cycle of the signal in the entire 10 sec 
-            # bc for floating op arithmetic, this must be echo'ed or expr returns string
-            #freq=$(expr "scale=1;1/$duration" | bc)    #freq is a string, scale=1 means keep 1 places after decimal
+            # file error check
+            if [[ $is_file_valid -eq 10 ]]; then  # false=not valid, skip processing this file
+                write_screen_log "FAIL: $file will not be processed due to errors.\n\n"
+                continue
             
-            # the calculated freq is a string, call main function once while loop to avoid calculation problems due to string
-            create_wav_with_SRs $file        # function call for exec e.g. calls cpp main function (only input file arg is mandatory)
+            else    # input file is correct, call main function and run tests
+                write_screen_log "SUCCESS: $file is a valid input file. It will now be processed.\n"
 
-            # calculate second frequency
-            #freq=$(expr $freq*10 | bc)  # freq=freq*10
-            #freq=${freq%.*} # as freq contains a string with a decimal, get rid of decimal part from freq
+                # calculate first frequency test case, to fit 1 full cycle of the signal in the entire 10 sec 
+                # bc for floating op arithmetic, this must be echo'ed or expr returns string
+                #freq=$(expr "scale=1;1/$duration" | bc)    #freq is a string, scale=1 means keep 1 places after decimal
+                
+                # the calculated freq is a string, call main function once while loop to avoid calculation problems due to string
+                create_wav_with_SRs $file        # function call for exec e.g. calls cpp main function (only input file arg is mandatory)
 
-            #while [ $freq -le $max_freq ]; do       # -le means less or equal
-            #    create_wav_with_SRs $file $duration $freq $sampling_rate    # function call for exec e.g. calls cpp main function (only input file arg is mandatory)
-            #    freq=$((freq*10))
-            #done
+                # calculate second frequency
+                #freq=$(expr $freq*10 | bc)  # freq=freq*10
+                #freq=${freq%.*} # as freq contains a string with a decimal, get rid of decimal part from freq
 
-        fi
+                #while [ $freq -le $max_freq ]; do       # -le means less or equal
+                #    create_wav_with_SRs $file $duration $freq $sampling_rate    # function call for exec e.g. calls cpp main function (only input file arg is mandatory)
+                #    freq=$((freq*10))
+                #done
 
-    done    #each file processing loop end
-fi
+            fi
+
+        done    #each file processing loop end
+    fi
+}
+
+# Warning and execute
+echo "This script might change contents of all the text files in the current directory. Please save any important text documents to another directory first. Do you want to continue? (type 1 or 2 and enter)"
+select yn in "Yes" "No"; do
+    case $yn in
+        Yes ) execute; break;;
+        No ) exit;;
+    esac
+done
+
+
