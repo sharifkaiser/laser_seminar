@@ -79,7 +79,7 @@ int canvas_h = 400, canvas_w = 400;    // input from user, or parse from svg fil
 std::uint32_t lut_size = 480000;  // lookup table initial size
 
 // multiplier for 16 bit signal, the range of points [-0.5, +0.5], so after multiplication, range: [-20000, 20000]
-std::uint32_t amp_multiplyer = 40000;
+std::uint32_t amp_multiplyer = 60000;
 
 template <typename T>
 std::string to_string_with_precision(const T a_value, const int n = 2)
